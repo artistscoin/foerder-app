@@ -11,7 +11,6 @@ import tempfile
 app = Flask(__name__)
 DB_PATH = 'foerdermatrix.db'
 
-# Datenbank initialisieren
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -82,26 +81,26 @@ def index():
 
     radar_chart = generate_radar_chart()
 
-    html = f'''
+    html = """
     <!DOCTYPE html>
     <html>
     <head>
         <title>Förderdaten Badesee Halberstadt</title>
         <style>
-            body {{ margin: 0; font-family: Arial, sans-serif; }}
-            .container {{ display: flex; height: 100vh; }}
-            .left, .right {{ width: 50%; padding: 30px; box-sizing: border-box; overflow-y: auto; }}
-            .left {{ background: #f4f4f4; }}
-            table {{ width: 100%; border-collapse: collapse; background: #fff; }}
-            th, td {{ padding: 10px; border: 1px solid #ccc; text-align: left; }}
-            input[type=text] {{ padding: 8px; width: 100%; box-sizing: border-box; }}
-            input[type=submit] {{ padding: 10px 20px; background: #28a745; color: #fff; border: none; cursor: pointer; }}
-            a.button {{ padding: 5px 10px; background: #dc3545; color: white; text-decoration: none; margin-left: 10px; }}
-            a.edit {{ background: #007bff; }}
-            form {{ display: flex; flex-direction: column; gap: 10px; max-width: 800px; }}
-            .form-row {{ display: flex; gap: 10px; }}
-            .form-row div {{ flex: 1; }}
-            img {{ max-width: 100%; }}
+            body { margin: 0; font-family: Arial, sans-serif; }
+            .container { display: flex; height: 100vh; }
+            .left, .right { width: 50%; padding: 30px; box-sizing: border-box; overflow-y: auto; }
+            .left { background: #f4f4f4; }
+            table { width: 100%; border-collapse: collapse; background: #fff; }
+            th, td { padding: 10px; border: 1px solid #ccc; text-align: left; }
+            input[type=text] { padding: 8px; width: 100%; box-sizing: border-box; }
+            input[type=submit] { padding: 10px 20px; background: #28a745; color: #fff; border: none; cursor: pointer; }
+            a.button { padding: 5px 10px; background: #dc3545; color: white; text-decoration: none; margin-left: 10px; }
+            a.edit { background: #007bff; }
+            form { display: flex; flex-direction: column; gap: 10px; max-width: 800px; }
+            .form-row { display: flex; gap: 10px; }
+            .form-row div { flex: 1; }
+            img { max-width: 100%; }
         </style>
     </head>
     <body>
@@ -139,13 +138,17 @@ def index():
             </div>
             <div class="right">
                 <h2>Radar-Auswertung</h2>
-                {"<img src='data:image/png;base64," + radar_chart + "'>" if radar_chart else "<p>Noch keine Daten vorhanden.</p>"}
+                {% if radar_chart %}
+                    <img src="data:image/png;base64,{{ radar_chart }}">
+                {% else %}
+                    <p>Noch keine Daten vorhanden.</p>
+                {% endif %}
             </div>
         </div>
     </body>
     </html>
-    '''
-    return render_template_string(html, rows=rows)
+    """
+    return render_template_string(html, rows=rows, radar_chart=radar_chart)
 
 @app.route('/delete/<int:id>')
 def delete(id):
