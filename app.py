@@ -3,6 +3,7 @@ import sqlite3
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 import io
 import base64
 import tempfile
@@ -25,6 +26,36 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
+
+def generate_radar_chart():
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query(
+        "SELECT foerderbereich, COUNT(*) as anzahl FROM foerderdaten GROUP BY foerderbereich", conn)
+    conn.close()
+
+    if df.empty:
+        return ""
+
+    labels = df['foerderbereich'].tolist()
+    values = df['anzahl'].tolist()
+    num_vars = len(labels)
+
+    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+    values += values[:1]
+    angles += angles[:1]
+
+    fig, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
+    ax.plot(angles, values, color='tab:blue', linewidth=2)
+    ax.fill(angles, values, color='tab:blue', alpha=0.25)
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels)
+    ax.set_title("Förderbereiche (Radar Chart)")
+
+    img = io.BytesIO()
+    plt.tight_layout()
+    plt.savefig(img, format='png')
+    img.seek(0)
+    return base64.b64encode(img.read()).decode()
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -49,56 +80,68 @@ def index():
     rows = c.fetchall()
     conn.close()
 
-    html = '''
+    radar_chart = generate_radar_chart()
+
+    html = f'''
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Förderdaten</title>
+        <title>Förderdaten Badesee Halberstadt</title>
         <style>
-            body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f4; }
-            h1 { color: #333; }
-            table { width: 100%; border-collapse: collapse; background: #fff; }
-            th, td { padding: 10px; border: 1px solid #ccc; text-align: left; }
-            input[type=text] { padding: 8px; width: 100%; box-sizing: border-box; }
-            input[type=submit] { padding: 10px 20px; background: #28a745; color: #fff; border: none; cursor: pointer; }
-            a.button { padding: 5px 10px; background: #dc3545; color: white; text-decoration: none; margin-left: 10px; }
-            a.edit { background: #007bff; }
-            form { display: flex; flex-direction: column; gap: 10px; max-width: 800px; }
-            .form-row { display: flex; gap: 10px; }
-            .form-row div { flex: 1; }
+            body {{ margin: 0; font-family: Arial, sans-serif; }}
+            .container {{ display: flex; height: 100vh; }}
+            .left, .right {{ width: 50%; padding: 30px; box-sizing: border-box; overflow-y: auto; }}
+            .left {{ background: #f4f4f4; }}
+            table {{ width: 100%; border-collapse: collapse; background: #fff; }}
+            th, td {{ padding: 10px; border: 1px solid #ccc; text-align: left; }}
+            input[type=text] {{ padding: 8px; width: 100%; box-sizing: border-box; }}
+            input[type=submit] {{ padding: 10px 20px; background: #28a745; color: #fff; border: none; cursor: pointer; }}
+            a.button {{ padding: 5px 10px; background: #dc3545; color: white; text-decoration: none; margin-left: 10px; }}
+            a.edit {{ background: #007bff; }}
+            form {{ display: flex; flex-direction: column; gap: 10px; max-width: 800px; }}
+            .form-row {{ display: flex; gap: 10px; }}
+            .form-row div {{ flex: 1; }}
+            img {{ max-width: 100%; }}
         </style>
     </head>
     <body>
-        <h1>Förderdaten Badesee Halberstadt</h1>
-        <form method="post">
-            <div class="form-row">
-                <div><label>Quelle:<br><input name="quelle" type="text" required></label></div>
-                <div><label>Bereich:<br><input name="bereich" type="text" required></label></div>
-            </div>
-            <div class="form-row">
-                <div><label>Art:<br><input name="art" type="text" required></label></div>
-                <div><label>Programm:<br><input name="programm" type="text" required></label></div>
-            </div>
-            <div><input type="submit" value="Speichern"></div>
-        </form>
+        <div class="container">
+            <div class="left">
+                <h1>Förderdaten Badesee Halberstadt</h1>
+                <form method="post">
+                    <div class="form-row">
+                        <div><label>Quelle:<br><input name="quelle" type="text" required></label></div>
+                        <div><label>Bereich:<br><input name="bereich" type="text" required></label></div>
+                    </div>
+                    <div class="form-row">
+                        <div><label>Art:<br><input name="art" type="text" required></label></div>
+                        <div><label>Programm:<br><input name="programm" type="text" required></label></div>
+                    </div>
+                    <div><input type="submit" value="Speichern"></div>
+                </form>
 
-        <h2>Einträge:</h2>
-        <table>
-            <tr><th>ID</th><th>Quelle</th><th>Bereich</th><th>Art</th><th>Programm</th><th>Aktionen</th></tr>
-            {% for row in rows %}
-            <tr>
-                {% for col in row[:-1] %}<td>{{ col }}</td>{% endfor %}
-                <td>{{ row[-1] }}</td>
-                <td>
-                    <a href="/edit/{{ row[0] }}" class="button edit">Bearbeiten</a>
-                    <a href="/delete/{{ row[0] }}" class="button">Löschen</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </table>
-        <br>
-        <a href="/chart">📊 Grafische Auswertung anzeigen</a> |
-        <a href="/export">⬇️ Daten als CSV herunterladen</a>
+                <h2>Einträge:</h2>
+                <table>
+                    <tr><th>ID</th><th>Quelle</th><th>Bereich</th><th>Art</th><th>Programm</th><th>Aktionen</th></tr>
+                    {% for row in rows %}
+                    <tr>
+                        {% for col in row[:-1] %}<td>{{ col }}</td>{% endfor %}
+                        <td>{{ row[-1] }}</td>
+                        <td>
+                            <a href="/edit/{{ row[0] }}" class="button edit">Bearbeiten</a>
+                            <a href="/delete/{{ row[0] }}" class="button">Löschen</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </table>
+                <br>
+                <a href="/export">⬇️ Daten als CSV herunterladen</a>
+            </div>
+            <div class="right">
+                <h2>Radar-Auswertung</h2>
+                {"<img src='data:image/png;base64," + radar_chart + "'>" if radar_chart else "<p>Noch keine Daten vorhanden.</p>"}
+            </div>
+        </div>
     </body>
     </html>
     '''
@@ -140,25 +183,6 @@ def edit(id):
     <br><a href="/">Zurück</a>
     '''
     return render_template_string(html, row=row)
-
-@app.route('/chart')
-def chart():
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query("SELECT foerderquelle, COUNT(*) as anzahl FROM foerderdaten GROUP BY foerderquelle", conn)
-    conn.close()
-
-    fig, ax = plt.subplots()
-    df.plot(kind='bar', x='foerderquelle', y='anzahl', legend=False, ax=ax)
-    ax.set_ylabel('Anzahl Einträge')
-    ax.set_title('Förderdaten nach Quelle')
-    plt.tight_layout()
-
-    img = io.BytesIO()
-    plt.savefig(img, format='png')
-    img.seek(0)
-    plot_url = base64.b64encode(img.getvalue()).decode()
-
-    return f'<h1>Auswertung</h1><img src="data:image/png;base64,{plot_url}"><br><a href="/">Zurück</a>'
 
 @app.route('/export')
 def export_csv():
